@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
-//#include <dht.h> << not sure why it's not working
+#include <dht_nonblocking.h> 
+#include <LiquidCrystal.h>
 
 // port b register values
 volatile unsigned char* port_b = (unsigned char*) 0x25;
@@ -47,7 +48,9 @@ void loop()
   resval = analogRead(respin); // Read data from analog pin and store it to resval variable
   tempval = analogRead(tempin); // Read data from analog pin and store it in tempval
 
-  Serial.println(resval);
+
+  //Serial.println(resval);
+  Serial.println(tempval);
   //  Control_Lights( Resval );
 
   delay(1000);
