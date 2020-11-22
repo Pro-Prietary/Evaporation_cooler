@@ -32,8 +32,8 @@ void control_lights( int value );
 void setup()
 {
   Serial.begin(9600);
-  *ddr_k = 0xFF;
-  *ddr_b = 0xF0;
+  *ddr_b = 0xFF;
+  *ddr_k = 0x00;
 }
 
 /*******************************************************************************************
