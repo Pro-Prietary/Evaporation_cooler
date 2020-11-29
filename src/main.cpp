@@ -68,7 +68,7 @@ void loop()
     // Serial.println(tempval);
 
     // change lights based on water level
-    water_level_lights( resval );
+    control_lights( resval, tempval );
 
 
   }
