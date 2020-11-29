@@ -28,7 +28,7 @@ int resval = 0;  // holds the value
 int respin = A11; // water sensor pin used
 int tempval = 0; // temperature value
 int tempin = A12; // temperature sensor pin used
-static int enabled = 0; // start off disabled
+//bool enabled = 1; // start off disabled
 
 // function prototypes
 void control_lights( int waterLevel, int tempLevel );
@@ -44,6 +44,7 @@ void setup()
   *ddr_b = 0xFF;
   *ddr_k = 0x00; // all input
   *ddr_h = 0x00; // all input
+  *port_h = 0xFF; // all have pullup resistor
 }
 
 /*******************************************************************************************
@@ -53,19 +54,15 @@ void setup()
  */
 void loop()
 {
-  enabled += digitalRead(9); // Read from PH6
 
-  if( (enabled % 2) == 1 ) { // enabled state
+  if( !digitalRead(9) == 1 ) { // enabled state
     Serial.println("enabled");
 
-    // enable PB7, which should be the green light
-    //*port_b |= 0x80;
-
-    resval = analogRead(respin); // Read data from analog pin and store it to resval variable
-    tempval = analogRead(tempin); // Read data from analog pin and store it in tempval
+    //resval = analogRead(respin); // Read data from analog pin and store it to resval variable
+    //tempval = analogRead(tempin); // Read data from analog pin and store it in tempval
 
     Serial.println(resval);
-    // Serial.println(tempval);
+    Serial.println(tempval);
 
     // change lights based on water level
     control_lights( resval, tempval );
@@ -107,7 +104,7 @@ void control_lights( int waterLevel, int tempLevel )
     }
   else if ( waterLevel > DEFAULT_WATER_LVL && tempLevel > DEFAULT_TEMP_LVL )
     {
-      Serial.println("Water Level: IDLE"); // Blue
+      Serial.println("Water Level: RUNNING"); // Blue
       *port_b = 0x10;
     }
 }
