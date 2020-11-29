@@ -28,10 +28,14 @@ int resval = 0;  // holds the value
 int respin = A11; // water sensor pin used
 int tempval = 0; // temperature value
 int tempin = A12; // temperature sensor pin used
+bool old_buttonstate = 0;
+bool new_buttonstate = 0;
+bool disabledstate = 0;
 //bool enabled = 1; // start off disabled
 
 // function prototypes
 void control_lights( int waterLevel, int tempLevel );
+void Button_chk ();
 
 /*******************************************************************************************
  * Function: setup()
@@ -55,7 +59,8 @@ void setup()
 void loop()
 {
 
-  if( !digitalRead(9) == 1 ) { // enabled state
+  Button_chk();
+  if( disabledstate == 1 ) { // enabled state PH6
     Serial.println("enabled");
 
     //resval = analogRead(respin); // Read data from analog pin and store it to resval variable
@@ -75,12 +80,12 @@ void loop()
     Serial.println("disabled");
 
     // enable PB5, which should be the yellow light
-    *port_b &= 0x00; // turn off all lights
-    *port_b |= 0x20; // Yellow
+    //*port_b &= 0x00; // turn off all lights
+    *port_b = 0x20; // Yellow
 
   }
 
-  delay(1000);
+ delay(250);
 }
 
 /*******************************************************************************************
@@ -90,7 +95,7 @@ void loop()
  */
 void control_lights( int waterLevel, int tempLevel )
 {
-  *port_b &= 0x00; // turn off all lights
+  //*port_b &= 0x00; // turn off all lights
 
   if ( waterLevel <= DEFAULT_WATER_LVL )
     {
@@ -107,4 +112,19 @@ void control_lights( int waterLevel, int tempLevel )
       Serial.println("Water Level: RUNNING"); // Blue
       *port_b = 0x10;
     }
+}
+
+/**************************************
+ * Button Function
+ */
+void Button_chk ()
+{
+  new_buttonstate = !digitalRead(9);
+  if ( new_buttonstate != old_buttonstate)
+  {
+    disabledstate = !disabledstate;
+    old_buttonstate = 0;
+    new_buttonstate = 0;
+    delay(500);
+  }
 }
