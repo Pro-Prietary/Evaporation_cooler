@@ -30,9 +30,11 @@ int tempval = 0; // temperature value
 int tempin = A12; // temperature sensor pin used
 bool old_buttonstate = 0;
 bool new_buttonstate = 0;
-bool disabledstate = 0;
-//bool enabled = 1; // start off disabled
+bool disabledstate = 0; // start off disabled
+int push_button = A8;
 
+//LCD initialization
+LiquidCrystal lcd(8,9,4,5,6,7); //(RS, E, D4, D5, D6, D7 )
 // function prototypes
 void control_lights( int waterLevel, int tempLevel );
 void Button_chk ();
@@ -49,6 +51,8 @@ void setup()
   *ddr_k = 0x00; // all input
   *ddr_h = 0x00; // all input
   *port_h = 0xFF; // all have pullup resistor
+  lcd.begin(16,2); // size of LCD
+  lcd.setCursor(0,0); // set it at top-left most position 
 }
 
 /*******************************************************************************************
@@ -72,7 +76,18 @@ void loop()
     // change lights based on water level
     control_lights( resval, tempval );
 
+    delay(1000); // delay to see the ERROR message AND the readings properly
 
+    lcd.clear();  // to make sure it always start at the initial position
+    lcd.print("Temp: "); // shorten to temp to have more space
+    //lcd.print("DHT.temperature"); // print temperature from DHT function
+    lcd.print((char)223);
+    lcd.print("C");
+    lcd.setCursor(0,1); // set cursor to the next line.
+    lcd.print("Humidity: "); 
+    //lcd.print("DHT.humidity"); // print humidity from DHT function
+    lcd.print("%");
+    
   }
   else { // disabled state
 
@@ -83,9 +98,11 @@ void loop()
     //*port_b &= 0x00; // turn off all lights
     *port_b = 0x20; // Yellow
 
+    lcd.clear();  // to make sure it always start at the initial position
+    lcd.print("    DISABLED"); // no monitoring is happening
   }
 
- delay(250);
+ delay(1000);
 }
 
 /*******************************************************************************************
@@ -101,6 +118,10 @@ void control_lights( int waterLevel, int tempLevel )
     {
       Serial.println("Water Level: TOO LOW"); // Red
       *port_b = 0x40;
+      lcd.clear();  // to make sure it always start at the initial position
+      lcd.print("      ERROR"); // error message 
+      lcd.setCursor(0,1); // set cursor to the next line.
+      lcd.print("Water is TOO low"); 
     }
   else if ( waterLevel > DEFAULT_WATER_LVL && tempLevel < DEFAULT_TEMP_LVL )
     {
@@ -119,7 +140,7 @@ void control_lights( int waterLevel, int tempLevel )
  */
 void Button_chk ()
 {
-  new_buttonstate = !digitalRead(9);
+  new_buttonstate = !analogRead(push_button); //!digitalRead(9); //replace with other pin since I needed pin 9 PWM for LCD
   if ( new_buttonstate != old_buttonstate)
   {
     disabledstate = !disabledstate;
