@@ -1,10 +1,15 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <dht_nonblocking.h> 
+#include <DHT.h>
+#include <Adafruit_Sensor.h>
 #include <LiquidCrystal.h>
 
-#define DEFAULT_WATER_LVL 250
+#define DEFAULT_WATER_LVL 300
 #define DEFAULT_TEMP_LVL 25
+
+#define DHTPIN A8 // analog pin A8
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
 
 // port b register values
 volatile unsigned char* port_b = (unsigned char*) 0x25;
@@ -30,17 +35,21 @@ volatile unsigned char* my_ADCSRA   = (unsigned char*) 0x7A;
 volatile unsigned int*  my_ADC_DATA = (unsigned int*)  0x78;
 
 // other global values
-int resval = 0;  // holds the value
-int respin = A11; // water sensor pin used
-int tempval = 0; // temperature value
-int tempin = A12; // temperature sensor pin used
+unsigned int resval = 0;  // holds the value
+int respin = 11; // water sensor pin used
+float tempval = 0; // temperature value
+float humid = 0; // ADDED: humidity variable.
 bool old_buttonstate = 0;
 bool new_buttonstate = 0;
 bool disabledstate = 0; // start off disabled
-int push_button = A8; // location of pin for push button
+int push_button = 8; // location of pin for push button
+
+// DHT initialization
+//static const int DHT_SENSOR_PIN = 2; // A12 same as tempin;
+// DHT_nonblocking dht_sensor( tempin, DHT_SENSOR_TYPE ); // DHT_SENSOR_PIN changed to tempin it's the sensor pin.
 
 //LCD initialization
-LiquidCrystal lcd(8,9,4,5,6,7); //(RS, E, D4, D5, D6, D7 )
+LiquidCrystal lcd(23, 24, 25, 26, 27, 28); //(RS, E, D4, D5, D6, D7 )
 // function prototypes
 void adc_init();
 unsigned int adc_read(unsigned char adc_channel_num);
@@ -57,10 +66,11 @@ void setup()
   Serial.begin(9600);
   *ddr_b = 0xFF;
   *ddr_k = 0x00; // all input
-  *ddr_h = 0x00; // all input
+  *ddr_h = 0x00; // 0000 0000: all input
   *port_h = 0xFF; // all have pullup resistor
   lcd.begin(16,2); // size of LCD
   lcd.setCursor(0,0); // set it at top-left most position 
+  dht.begin();
   adc_init(); // initialize analog-to-digital conversion
 }
 
@@ -71,11 +81,14 @@ void setup()
  */
 void loop() {
   Button_chk();
-  if( disabledstate == 1 ) { // enabled state PH6
-    Serial.println("enabled");
 
-    //resval = adc_read(respin); // Read data from analog pin and store it to resval variable
-    //tempval = adc_read(tempin); // Read data from analog pin and store it in tempval
+  if( disabledstate == 1 ) { // enabled state PH6
+
+    humid = dht.readHumidity(); //reads humidity
+    tempval = dht.readTemperature(true); //reads temp in F
+    
+    //unsigned int adc_reading = adc_read(respin); // start getting reading
+    resval = adc_read(respin); // Read data from analog pin and store it to resval variable
 
     Serial.println(resval);
     Serial.println(tempval);
@@ -87,18 +100,15 @@ void loop() {
 
     lcd.clear();  // to make sure it always start at the initial position
     lcd.print("Temp: "); // shorten to temp to have more space
-    //lcd.print("DHT.temperature"); // print temperature from DHT function
+    lcd.print(tempval); // print temperature from DHT function
     lcd.print((char)223);
     lcd.print("C");
     lcd.setCursor(0,1); // set cursor to the next line.
     lcd.print("Humidity: "); 
-    //lcd.print("DHT.humidity"); // print humidity from DHT function
+    lcd.print(humid); // print humidity from DHT function
     lcd.print("%");
   }
   else { // disabled state
-
-    // here we print to LCD as disabled
-    Serial.println("disabled");
 
     // enable PB5, which should be the yellow light
     //*port_b &= 0x00; // turn off all lights
@@ -156,6 +166,7 @@ unsigned int adc_read(unsigned char adc_channel_num){
   // clear channel selection bits (MUX 5), which is bit 3 on ADCSRB
   *my_ADCSRB &= 0xF7;
 
+
   // This if statement chooses which port on arduino to use
   // set the channel number
   if(adc_channel_num > 7)
@@ -193,6 +204,7 @@ void control_lights( int waterLevel, int tempLevel ) {
     {
       Serial.println("Water Level: TOO LOW"); // Red
       *port_b = 0x40;
+      // *port_b &= 0x40; turn off motor, need to know which bit is for motor...
       lcd.clear();  // to make sure it always start at the initial position
       lcd.print("      ERROR"); // error message 
       lcd.setCursor(0,1); // set cursor to the next line.
@@ -207,6 +219,7 @@ void control_lights( int waterLevel, int tempLevel ) {
     {
       Serial.println("Water Level: RUNNING"); // Blue
       *port_b = 0x10;
+      // turn ON motor, decide which port and bit for motor
     }
 }
 
@@ -218,7 +231,7 @@ void control_lights( int waterLevel, int tempLevel ) {
 void Button_chk ()
 {
   // do we really want this as adc_read?
-  new_buttonstate = !adc_read(push_button); //!digitalRead(9); //replace with other pin since I needed pin 9 PWM for LCD
+  new_buttonstate = !digitalRead(9); 
   if ( new_buttonstate != old_buttonstate)
   {
     disabledstate = !disabledstate;
