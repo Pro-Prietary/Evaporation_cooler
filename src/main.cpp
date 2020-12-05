@@ -3,13 +3,19 @@
 #include <DHT.h>
 #include <Adafruit_Sensor.h>
 #include <LiquidCrystal.h>
+#include <DS3231.h>
+#include <Servo.h>
 
-#define DEFAULT_WATER_LVL 300
-#define DEFAULT_TEMP_LVL 25
+#define DEFAULT_WATER_LVL 410
+#define DEFAULT_TEMP_LVL 80
 
 #define DHTPIN A8 // analog pin A8
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
+
+// Real Time Clock
+DS3231 clock; // work on the how to use DS1307
+RTCDateTime dt;
 
 // port b register values
 volatile unsigned char* port_b = (unsigned char*) 0x25;
@@ -71,6 +77,8 @@ void setup()
   lcd.begin(16,2); // size of LCD
   lcd.setCursor(0,0); // set it at top-left most position 
   dht.begin();
+  //clock.begin(); // start the clock
+  //clock.setDateTime(__DATE__, __TIME__); // set date and time automatically
   adc_init(); // initialize analog-to-digital conversion
 }
 
@@ -102,7 +110,7 @@ void loop() {
     lcd.print("Temp: "); // shorten to temp to have more space
     lcd.print(tempval); // print temperature from DHT function
     lcd.print((char)223);
-    lcd.print("C");
+    lcd.print("F");
     lcd.setCursor(0,1); // set cursor to the next line.
     lcd.print("Humidity: "); 
     lcd.print(humid); // print humidity from DHT function
@@ -202,24 +210,50 @@ void control_lights( int waterLevel, int tempLevel ) {
 
   if ( waterLevel <= DEFAULT_WATER_LVL )
     {
-      Serial.println("Water Level: TOO LOW"); // Red
       *port_b = 0x40;
       // *port_b &= 0x40; turn off motor, need to know which bit is for motor...
       lcd.clear();  // to make sure it always start at the initial position
       lcd.print("      ERROR"); // error message 
       lcd.setCursor(0,1); // set cursor to the next line.
       lcd.print("Water is TOO low"); 
+
+      //dt = clock.getDateTime();
+
+      /*
+      Serial.print("Motor OFF at: ");
+      Serial.print(dt.year);   Serial.print("-");
+      Serial.print(dt.month);  Serial.print("-");
+      Serial.print(dt.day);    Serial.print(" ");
+      Serial.print(dt.hour);   Serial.print(":");
+      Serial.print(dt.minute); Serial.print(":");
+      Serial.print(dt.second); Serial.println("");
+
+      delay(1000);
+      */
     }
   else if ( waterLevel > DEFAULT_WATER_LVL && tempLevel < DEFAULT_TEMP_LVL )
     {
-      Serial.println("Water Level: IDLE"); // Green
       *port_b = 0x80;
     }
   else if ( waterLevel > DEFAULT_WATER_LVL && tempLevel > DEFAULT_TEMP_LVL )
     {
-      Serial.println("Water Level: RUNNING"); // Blue
       *port_b = 0x10;
+
+      //dt = clock.getDateTime();
+
+      /*
       // turn ON motor, decide which port and bit for motor
+        Serial.print("Motor ON at: ");
+        Serial.print(dt.year);   Serial.print("-");
+        Serial.print(dt.month);  Serial.print("-");
+        Serial.print(dt.day);    Serial.print(" ");
+        Serial.print(dt.hour);   Serial.print(":");
+        Serial.print(dt.minute); Serial.print(":");
+        Serial.print(dt.second); Serial.println("");
+
+        */
+
+        delay(1000);
     }
 }
 
