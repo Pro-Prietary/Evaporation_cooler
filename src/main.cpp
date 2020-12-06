@@ -6,16 +6,24 @@
 #include <DS3231.h>
 #include <Servo.h>
 
-#define DEFAULT_WATER_LVL 410
-#define DEFAULT_TEMP_LVL 80
+// Thresholds
+#define DEFAULT_WATER_LVL 330
+#define DEFAULT_TEMP_LVL 73
 
-#define DHTPIN A8 // analog pin A8
-#define DHTTYPE DHT11
+//LCD initialization
+LiquidCrystal lcd(23, 24, 25, 26, 27, 28); //(RS, E, D4, D5, D6, D7 )
+
+// DHT Initialization
+#define DHTPIN A8           // analog pin A8
+#define DHTTYPE DHT11       // uses DHT11 sensor
 DHT dht(DHTPIN, DHTTYPE);
 
-// Real Time Clock
-DS3231 clock; // work on the how to use DS1307
+// Real Time Clock Initialization
+DS3231 clock;              // work on the how to use DS1307
 RTCDateTime dt;
+
+// Servo Initialization
+Servo myservo;             // create servo object to control a servo
 
 // port b register values
 volatile unsigned char* port_b = (unsigned char*) 0x25;
@@ -41,26 +49,22 @@ volatile unsigned char* my_ADCSRA   = (unsigned char*) 0x7A;
 volatile unsigned int*  my_ADC_DATA = (unsigned int*)  0x78;
 
 // other global values
-unsigned int resval = 0;  // holds the value
-int respin = 11; // water sensor pin used
-float tempval = 0; // temperature value
-float humid = 0; // ADDED: humidity variable.
 bool old_buttonstate = 0;
 bool new_buttonstate = 0;
-bool disabledstate = 0; // start off disabled
-int push_button = 8; // location of pin for push button
+bool disabledstate = 0;     // start off disabled
+unsigned int resval = 0;    // water level value
+int respin = 11;            // pin for water sensor
+float tempval = 0;          // temperature value
+float humval = 0;           // humidity value.
+//sqd `int motpin = 14;            // pin for motor 
+int serval = 0;             // servo value
 
-// DHT initialization
-//static const int DHT_SENSOR_PIN = 2; // A12 same as tempin;
-// DHT_nonblocking dht_sensor( tempin, DHT_SENSOR_TYPE ); // DHT_SENSOR_PIN changed to tempin it's the sensor pin.
-
-//LCD initialization
-LiquidCrystal lcd(23, 24, 25, 26, 27, 28); //(RS, E, D4, D5, D6, D7 )
-// function prototypes
+// Function prototypes
 void adc_init();
 unsigned int adc_read(unsigned char adc_channel_num);
 void control_lights( int waterLevel, int tempLevel );
 void Button_chk ();
+void RTC_stamps ();
 
 /*******************************************************************************************
  * Function: setup()
@@ -70,16 +74,21 @@ void Button_chk ();
 void setup()
 {
   Serial.begin(9600);
-  *ddr_b = 0xFF;
-  *ddr_k = 0x00; // all input
-  *ddr_h = 0x00; // 0000 0000: all input
-  *port_h = 0xFF; // all have pullup resistor
-  lcd.begin(16,2); // size of LCD
-  lcd.setCursor(0,0); // set it at top-left most position 
+  *ddr_b = 0xFF;        // 1111 1111: all output
+
+  *ddr_k = 0x00;        // 0000 0000: all input
+
+  *ddr_h = 0x00;        // 0000 0000: all input
+  *port_h = 0xFF;       // 1111 1111: all have pullup resistor
+
+  lcd.begin(16,2);      // size of LCD
+  lcd.setCursor(0,0);   // set it at top-left most position 
   dht.begin();
-  //clock.begin(); // start the clock
+
+  //clock.begin();        // start the clock
   //clock.setDateTime(__DATE__, __TIME__); // set date and time automatically
-  adc_init(); // initialize analog-to-digital conversion
+
+  adc_init();           // initialize analog-to-digital conversion
 }
 
 /*******************************************************************************************
@@ -90,39 +99,36 @@ void setup()
 void loop() {
   Button_chk();
 
-  if( disabledstate == 1 ) { // enabled state PH6
-
-    humid = dht.readHumidity(); //reads humidity
-    tempval = dht.readTemperature(true); //reads temp in F
+  if( disabledstate == 1 ) 
+  {
+    humval = dht.readHumidity();          // reads humidity
+    tempval = dht.readTemperature(true);  // reads temp in F
     
-    //unsigned int adc_reading = adc_read(respin); // start getting reading
-    resval = adc_read(respin); // Read data from analog pin and store it to resval variable
+    resval = adc_read(respin);            // read data from analog pin and store it to resval variable
 
-    Serial.println(resval);
-    Serial.println(tempval);
+    Serial.println(resval);               // testing 
+    Serial.println(tempval);              // testing
 
-    // change lights based on water level
+    // change lights based on water level and temperature
     control_lights( resval, tempval );
 
-    delay(1000); // delay to see the ERROR message AND the readings properly
+    delay(1000);                // delay to see the ERROR message AND the readings properly
 
-    lcd.clear();  // to make sure it always start at the initial position
-    lcd.print("Temp: "); // shorten to temp to have more space
-    lcd.print(tempval); // print temperature from DHT function
+    lcd.clear();                // to make sure it always start at the initial position
+    lcd.print("Temp: ");        
+    lcd.print(tempval);         
     lcd.print((char)223);
     lcd.print("F");
-    lcd.setCursor(0,1); // set cursor to the next line.
+    lcd.setCursor(0,1);         // set cursor to the next line.
     lcd.print("Humidity: "); 
-    lcd.print(humid); // print humidity from DHT function
+    lcd.print(humval);          
     lcd.print("%");
   }
-  else { // disabled state
+  else {
 
-    // enable PB5, which should be the yellow light
-    //*port_b &= 0x00; // turn off all lights
-    *port_b = 0x20; // Yellow
+    *port_b = 0x20;            // Yellow light: DISABLE
 
-    lcd.clear();  // to make sure it always start at the initial position
+    lcd.clear();               // to make sure it always start at the initial position
     lcd.print("    DISABLED"); // no monitoring is happening
   }
 
@@ -199,7 +205,6 @@ unsigned int adc_read(unsigned char adc_channel_num){
   return *my_ADC_DATA;
 }
 
-
 /*******************************************************************************************
  * Function: control_lights( waterLevel, tempLevel )
  * Description: takes two int values and manipulates LED lights based on water level and temp level
@@ -211,49 +216,36 @@ void control_lights( int waterLevel, int tempLevel ) {
   if ( waterLevel <= DEFAULT_WATER_LVL )
     {
       *port_b = 0x40;
-      // *port_b &= 0x40; turn off motor, need to know which bit is for motor...
-      lcd.clear();  // to make sure it always start at the initial position
+      *port_b |= 0x08;          // | 0000 (10)00: 
+      *port_b &= 0xFD;          // & 1111 11(0)1: turn motor off, bit 1 is motor enabler
+      Serial.println("Motor OFF at: "); 
+      Serial.println(*port_b);
+      //RTC_stamps ();      
+
+      lcd.clear();              // to make sure it always start at the initial position
       lcd.print("      ERROR"); // error message 
-      lcd.setCursor(0,1); // set cursor to the next line.
+      lcd.setCursor(0,1);       // set cursor to the next line.
       lcd.print("Water is TOO low"); 
-
-      //dt = clock.getDateTime();
-
-      /*
-      Serial.print("Motor OFF at: ");
-      Serial.print(dt.year);   Serial.print("-");
-      Serial.print(dt.month);  Serial.print("-");
-      Serial.print(dt.day);    Serial.print(" ");
-      Serial.print(dt.hour);   Serial.print(":");
-      Serial.print(dt.minute); Serial.print(":");
-      Serial.print(dt.second); Serial.println("");
-
-      delay(1000);
-      */
     }
   else if ( waterLevel > DEFAULT_WATER_LVL && tempLevel < DEFAULT_TEMP_LVL )
     {
-      *port_b = 0x80;
+      *port_b = 0x80;           // 10000 0000, Green light: IDLE
+
+      // if motor is ON (xxxx 101x)
+      *port_b |= 0x08;           // | 0000 (10)00: 
+      *port_b &= 0xFD;          // & 1111 11(0)0: turn motor off, bit 1 is motor enabler
+      Serial.println("Motor OFF at: ");
+      Serial.println(*port_b);
+      //RTC_stamps ();
     }
   else if ( waterLevel > DEFAULT_WATER_LVL && tempLevel > DEFAULT_TEMP_LVL )
     {
-      *port_b = 0x10;
-
-      //dt = clock.getDateTime();
-
-      /*
-      // turn ON motor, decide which port and bit for motor
-        Serial.print("Motor ON at: ");
-        Serial.print(dt.year);   Serial.print("-");
-        Serial.print(dt.month);  Serial.print("-");
-        Serial.print(dt.day);    Serial.print(" ");
-        Serial.print(dt.hour);   Serial.print(":");
-        Serial.print(dt.minute); Serial.print(":");
-        Serial.print(dt.second); Serial.println("");
-
-        */
-
-        delay(1000);
+      *port_b = 0x10;          // Blue light: RUNNING
+      *port_b |= 0x08;           // | 0000 (10)00: 
+      *port_b |= 0x02;         // | 0000 00(1)0 50(PB3)=8 51(PB2)=9 52(PB1)=10(En)
+      Serial.println("Motor ON at: ");
+      Serial.println(*port_b);
+      //RTC_stamps ();
     }
 }
 
@@ -273,4 +265,21 @@ void Button_chk ()
     new_buttonstate = 0;
     delay(500);
   }
+}
+
+/*******************************************************************************************
+ * Function RTC_stamps ()
+ * Description: prints date and time when called for when the motor is on or off
+ * Returns: nothing (it only prints in the serial monitor)
+ */
+void RTC_stamps ()
+{
+  dt = clock.getDateTime();
+  
+  Serial.print(dt.year);   Serial.print("-");
+  Serial.print(dt.month);  Serial.print("-");
+  Serial.print(dt.day);    Serial.print(" ");
+  Serial.print(dt.hour);   Serial.print(":");
+  Serial.print(dt.minute); Serial.print(":");
+  Serial.print(dt.second); Serial.println("");
 }
