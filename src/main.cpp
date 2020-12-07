@@ -49,9 +49,12 @@ volatile unsigned char* my_ADCSRA   = (unsigned char*) 0x7A;
 volatile unsigned int*  my_ADC_DATA = (unsigned int*)  0x78;
 
 // other global values
-bool old_buttonstate = 0;
+bool old_buttonstate = 0;   // state button
 bool new_buttonstate = 0;
 bool disabledstate = 0;     // start off disabled
+bool servo_oldbutton = 0;   // servo button
+bool servo_newbutton = 0;
+bool servo_abled = 0;
 unsigned int resval = 0;    // water level value
 int respin = 11;            // pin for water sensor
 float tempval = 0;          // temperature value
@@ -63,8 +66,9 @@ int serval = 0;             // servo value
 void adc_init();
 unsigned int adc_read(unsigned char adc_channel_num);
 void control_lights( int waterLevel, int tempLevel );
-void Button_chk ();
-void RTC_stamps ();
+void Button_chk();
+void serbut_chk();
+void RTC_stamps();
 
 /*******************************************************************************************
  * Function: setup()
@@ -85,8 +89,10 @@ void setup()
   lcd.setCursor(0,0);   // set it at top-left most position 
   dht.begin();
 
-  //clock.begin();        // start the clock
+  //clock.begin();      // start the clock
   //clock.setDateTime(__DATE__, __TIME__); // set date and time automatically
+
+  myservo.attach(6);    // attaches the servo on pin 9 to the servo object
 
   adc_init();           // initialize analog-to-digital conversion
 }
@@ -98,6 +104,7 @@ void setup()
  */
 void loop() {
   Button_chk();
+  serbut_chk();
 
   if( disabledstate == 1 ) 
   {
@@ -274,7 +281,6 @@ void control_lights( int waterLevel, int tempLevel ) {
  */
 void Button_chk ()
 {
-  // do we really want this as adc_read?
   new_buttonstate = !digitalRead(9); 
   if ( new_buttonstate != old_buttonstate)
   {
@@ -285,6 +291,24 @@ void Button_chk ()
   }
 }
 
+/*******************************************************************************************
+ * Function: Button_chk2()
+ * Description: checks to see if button has been pressed. This makes the button function like a toggle switch
+ * Returns: nothing
+ */
+void serbut_chk ()
+{
+  //servo_newbutton = !digitalRead(7); 
+  //if ( servo_newbutton != servo_oldbutton)
+  //{
+  //servo_abled = !servo_abled;
+  //servo_oldbutton = 0;
+  //servo_newbutton = 0;
+  if (digitalRead(7) == 0){
+    myservo.write(45);      // rotate 45 degrees for each press
+    delay(150);
+  }
+}
 /*******************************************************************************************
  * Function RTC_stamps ()
  * Description: prints date and time when called for when the motor is on or off
