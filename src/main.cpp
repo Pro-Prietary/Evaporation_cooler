@@ -55,8 +55,8 @@ bool disabledstate = 0;     // start off disabled
 unsigned int resval = 0;    // water level value
 int respin = 11;            // pin for water sensor
 float tempval = 0;          // temperature value
-float humval = 0;           // humidity value.
-//sqd `int motpin = 14;            // pin for motor 
+float humval = 0;           // humidity value
+int motval = 0;             // motor off, probably bool but oh well
 int serval = 0;             // servo value
 
 // Function prototypes
@@ -125,13 +125,21 @@ void loop() {
     lcd.print("%");
   }
   else {
-
     *port_b = 0x20;            // Yellow light: DISABLE
+    *port_b |= 0x08;           // | 0000 (10)00: 
+    *port_b &= 0xFD;           // & 1111 11(0)1: turn motor off, bit 1 is motor enabler
 
+    Serial.println("disabled");// testing purposes
     lcd.clear();               // to make sure it always start at the initial position
     lcd.print("    DISABLED"); // no monitoring is happening
-  }
 
+    if (motval == 1)
+   {
+    Serial.println("Motor OFF at: ");
+    //RTC_stamps (); 
+    motval = 0;       
+   }
+  }
  delay(1000);
 }
 
@@ -211,17 +219,19 @@ unsigned int adc_read(unsigned char adc_channel_num){
  * Returns: nothing
  */
 void control_lights( int waterLevel, int tempLevel ) {
-  //*port_b &= 0x00; // turn off all lights
-
   if ( waterLevel <= DEFAULT_WATER_LVL )
     {
       *port_b = 0x40;
       *port_b |= 0x08;          // | 0000 (10)00: 
       *port_b &= 0xFD;          // & 1111 11(0)1: turn motor off, bit 1 is motor enabler
-      Serial.println("Motor OFF at: "); 
-      Serial.println(*port_b);
-      //RTC_stamps ();      
-
+      
+     if (motval == 1)
+      {
+      Serial.println("Motor OFF at: ");
+      //RTC_stamps (); 
+      motval = 0;       
+      } 
+    
       lcd.clear();              // to make sure it always start at the initial position
       lcd.print("      ERROR"); // error message 
       lcd.setCursor(0,1);       // set cursor to the next line.
@@ -231,21 +241,29 @@ void control_lights( int waterLevel, int tempLevel ) {
     {
       *port_b = 0x80;           // 10000 0000, Green light: IDLE
 
-      // if motor is ON (xxxx 101x)
-      *port_b |= 0x08;           // | 0000 (10)00: 
-      *port_b &= 0xFD;          // & 1111 11(0)0: turn motor off, bit 1 is motor enabler
+      // turn motor OFF
+      *port_b |= 0x08;          // | 0000 (10)00: 
+      *port_b &= 0xFD;          // & 1111 11(0)1: turn motor off, bit 1 is motor enabler
+
+      if (motval == 1)
+      {
       Serial.println("Motor OFF at: ");
-      Serial.println(*port_b);
-      //RTC_stamps ();
+      //RTC_stamps (); 
+      motval = 0;       
+      }
     }
   else if ( waterLevel > DEFAULT_WATER_LVL && tempLevel > DEFAULT_TEMP_LVL )
     {
       *port_b = 0x10;          // Blue light: RUNNING
-      *port_b |= 0x08;           // | 0000 (10)00: 
+      *port_b |= 0x08;         // | 0000 (10)00: 
       *port_b |= 0x02;         // | 0000 00(1)0 50(PB3)=8 51(PB2)=9 52(PB1)=10(En)
+
+      if (motval == 0)
+      {
       Serial.println("Motor ON at: ");
-      Serial.println(*port_b);
-      //RTC_stamps ();
+      //RTC_stamps (); 
+      motval = 1;       
+      }
     }
 }
 
